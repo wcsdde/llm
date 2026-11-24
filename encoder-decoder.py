@@ -6,24 +6,127 @@ import sys
 import types
 import runpy
 import inspect
+#先建个矩阵练练
+a=torch.tensor(7)
+print(a)
+print(a.shape)
+print(a.ndim)
+row=torch.tensor([74,853,10])
+print(row)
+print(row.shape)
+print(row.ndim)
+print(row[0])
+shsl=torch.tensor([
+    [8,5,9,4],
+    [89,44,2,1],
+    [7,4,1,3]
+])
+print(shsl)
+print(shsl.shape)
+print(shsl.ndim)#有几根轴
+print(shsl.numel())#[#3*4]
+print(shsl[0])
+print(shsl[2][3])
+od=shsl.sum(dim=1)#把每排的四个数加起来,沿着第 1 维把 4 个格子收掉，第 0 维的 3 排留下来,
+print(od)
+print(od.shape)
+oo=shsl.sum(dim=0)#填几，形状里第几维就从结果里消失,沿第 k 根轴，把那根轴上所有位置的数加成一个数,shape()里的轴
+print(oo)
+print(oo.shape)
+xl=shsl.sum(dim=-1)
+print(xl)
+print(xl.shape)
+yz=shsl.sum(dim=1,keepdim=True)#保留原轴型
+print(yz)
+print(shsl-yz)
+print(shsl+yz)
+users = torch.tensor([
+    [25.,  8., 12., 3.],
+    [34., 12.,  4., 7.],
+    [19.,  3., 30., 1.]
+])
+ones = torch.ones(4,1)#4，1形状参数
+print(users.shape)          
+print(ones.shape)           
+print(users @ ones)   # 矩阵乘法   
+print((users @ ones).shape) 
+print(torch.exp(users))#e的x次方
+print(float('-inf'))#负无穷，是一个比任何有限数都小的数
+print(5. + float('-inf'))  #加上一个有限数，它还是最小                        
+print(torch.exp(torch.tensor(float('-inf'))))
+s = torch.tensor([1., 1., 2.])#给 3 个分数，还 3 个数；这 3 个数都在 0 到 1 之间，加起来正好等于 1
+p = torch.softmax(s, dim=-1)#把一排分数改成一排占比
+print(p)                  
+print(p.sum(dim=-1))
+layer1 = nn.Linear(4, 2, bias=False)#一个线性层，里面存着一张权重表#输入 1 排 4 个数，出来 1 排 2 个数。新建的层里权重是随机值
+x2 = torch.tensor([[1., 2., 3., 4.]])   
+print(layer1(x2).shape) 
+x3 = torch.tensor([[1., 2., 3.],
+                  [4., 5., 6.]])
+print(x3.view(3, 2))#把同一串数换个摆法
+print(x3.view(6))
+import torch
+
+k = torch.tensor([
+    [1., 2.],
+    [3., 4.],
+    [5., 6.],
+])
+kt = k.transpose(-2, -1)#把两张轴换位置
+print(k.shape)    
+print(kt.shape)   
+print(kt)
+class Config:                                  
+    def __init__(self):                         
+        self.dim = 80                           
+        self.n_heads = 8                        
+        self.dropout = 0.1                      
+
+class Box:                                     
+    def __init__(self):                         
+        self.parts = []                         
+    def __call__(self, x):                      
+        return self.forward(x)                  
+    def forward(self, x):                       
+        return x * 2                            
+
+class TinyAttention(Box):                      
+    def __init__(self, args):                   
+        super().__init__()                      
+        self.n_heads = args.n_heads             
+        self.head_dim = args.dim // self.n_heads  
+        self.wq_width = self.head_dim * self.n_heads  
+        self.parts.append('wq')                 
+args = Config()                                
+m = TinyAttention(args) 
+print(args.dim, args.n_heads)      # 80 8
+print(m.n_heads, m.head_dim)       # 8 10
+print(m.wq_width)                  # 80
+print(m.parts)                     # ['wq']
+print(m(3))                        # 6                 
 def attention(q,k,v,dropout=None):
-    d_k = q.size(-1)
+    d_k = q.size(-1)#把某一根轴的长度变成一个普通数字
     scores = torch.matmul(q,k.transpose(-2,-1)/(d_k))**0.5
     pattern = torch.softmax(scores,dim=-1)
     if dropout !=None:
         pattern = dropout(pattern)
-    return torch.matmul(pattern,v),pattern
-x=torch.tensor([[1,85,7],[79,1,5],[7,452,1]],dtype=torch.float32)
-y=torch.randn(84,41)
+    return torch.matmul(pattern,v),pattern#q与k一起决定 scores，scores决定pattern,v被pattern 加权，矩阵相乘。v 全程没有参与打分，只在最后一步出现
+x=torch.tensor([
+    [1,85,7],
+    [79,1,5],
+    [7,452,1]],dtype=torch.float32)#seq3,d3
+y=torch.randn(84,41)#seq84,d41
 result,aw=attention(x,x,x)
 yout,yw=attention(y,y,y)
+print(result)
+print(aw)
 print(result.shape)
 print(aw.shape)
 print(yout.shape)
 print(yw.shape)
 @dataclass
 class Modelargs:
-    dim:int=79
+    dim:int=79#名字  类型标注  默认值
     n_layers:int=6
     n_heads:int=8
     vocab_size:int=10000
@@ -32,20 +135,20 @@ class Modelargs:
 class MultiHeadAttention(nn.Module):
     def __init__(self,args:Modelargs,is_casual=False):
         super().__init__()
-        assert args.dim%args.n_heads==0
+        assert args.dim%args.n_heads==0#assert判断条件是否为真，余数为 0 时 (dim // heads) × heads 正好回到 dim，余数不为 0 时，中间会差一截
         self.head_dim = args.dim // args.n_heads
         self.n_heads = args.n_heads
-        self.wq=nn.Linear(args.n_embd,self.dim*self.n_heads,bias=False)
-        self.wk=nn.Linear(args.n_embd,self.dim*self.n_heads,bias=False)
-        self.wv=nn.Linear(args.n_embd,self.dim*self.n_heads,bias=False)
+        self.wq=nn.Linear(args.dim,self.dim*self.n_heads,bias=False)#bias跳过if
+        self.wk=nn.Linear(args.dim,self.dim*self.n_heads,bias=False)
+        self.wv=nn.Linear(args.dim,self.dim*self.n_heads,bias=False)
         self.wo=nn.Linear(self.dim*self.n_heads,args.dim,bias=False)
-        self.attention_dropout = nn.Dropout(args.dropout)
+        self.attention_dropout = nn.Dropout(args.dropout)#造出一个层对象，括号里那个数是概率
         self.residual_dropout = nn.Dropout(args.dropout)
         self.is_casual = is_casual
         if self.is_casual:
-            mask = torch.full((args.max_seq_len,args.max_seq_len),float('-inf'))
+            mask = torch.full((args.max_seq_len,args.max_seq_len),float('-inf'))#占住一个位置，让它最后分不到权重。
             mask = torch.triu(mask,diagonal=1)
-            self.register_buffer('mask',mask)
+            self.register_buffer('mask',mask)# 把张量登记进 buffers 清单，同时把名字挂到对象上，后面 self.mask 与 hasattr(self, 'mask') 都读得到
 def forward(self,q:torch.Tensor,k:torch.Tensor,v:torch.Tensor):
         batch_size,seq_len,_ = q.size()
         xq=self.wq(q).view(batch_size,seq_len,self.n_heads,self.head_dim).transpose(1,2)
