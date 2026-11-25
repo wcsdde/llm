@@ -2,10 +2,12 @@ from dataclasses import dataclass
 from black import Mode
 import torch
 import torch.nn as nn
+import numpy as np
 import sys
 import types
 import runpy
 import inspect
+import math
 #先建个矩阵练练
 a=torch.tensor(7)
 print(a)
@@ -65,7 +67,7 @@ x3 = torch.tensor([[1., 2., 3.],
                   [4., 5., 6.]])
 print(x3.view(3, 2))#把同一串数换个摆法
 print(x3.view(6))
-import torch
+
 
 k = torch.tensor([
     [1., 2.],
@@ -76,6 +78,27 @@ kt = k.transpose(-2, -1)#把两张轴换位置
 print(k.shape)    
 print(kt.shape)   
 print(kt)
+
+print('float32(1/3)        =', float(np.float32(1 / 3)))
+def gelu(x):#夹在两层 nn.Linear 中间，让它们没法合并成一层
+    return 0.5 * x * (1 + math.tanh(math.sqrt(2/math.pi) * (x + 0.044715*x**3)))
+
+def linear(v, w):
+    return v * w
+
+x3 = 1.0
+h = linear(x3, 0.5)
+g = gelu(h)            
+o = linear(g, 2.0)          
+print(h, round(g, 6), round(o, 6))
+r1 = torch.tensor([5., 5., 5.])
+mean = r1.mean()
+var = ((r1 - mean) ** 2).mean()
+eps = 1e-5
+print
+(mean.item(), var.item())
+print('带 eps :', (r1 - mean) / torch.sqrt(var + eps))
+print('不带   :', (r1 - mean) / torch.sqrt(var))
 class Config:                                  
     def __init__(self):                         
         self.dim = 80                           
@@ -179,7 +202,7 @@ class Encoder_Layer(nn.Module):
     def __init__(self,dim,eps=1e-5):
         super().__init__()
         self.attention = MultiHeadAttention(dim)
-        self.norm1 = nn.LayerNorm(dim,eps=eps)
+        self.norm1 = nn.LayerNorm(dim,eps=eps)#最后一根，保持形状#eps 是加在方差上的一个很小的正数，把分母从 0 抬开
         self.ffn = nn.Sequential(
             nn.Linear(dim,dim*4),
             nn.GELU(),
@@ -211,13 +234,14 @@ class Decoder_Layer(nn.Module):
         self.norm2 = nn.LayerNorm(dim,eps=eps)
         self.ffn = nn.Sequential(
             nn.Linear(dim,dim*4),
-            nn.GELU(),
+            nn.GELU(),#逐元素算，每个格子各算各的，形状不变，精确式
             nn.Linear(dim*4,dim)
-        )
+        )#---造一个「按顺序过」的容器，写 self.ffn(x) 时三步依次执行，前一步的输出交给后一步
+
         self.norm3 = nn.LayerNorm(dim,eps=eps)
     def forward(self,x,encoder_output):
         self_attn_out,self_attn_weights = self.self_attention(x,x,x)
-        x = self.norm1(x + self_attn_out)
+        x = self.norm1(x + self_attn_out)# 先做逐格加法、再做归一化
         cross_attn_out,cross_attn_weights = self.cross_attention(x,encoder_output,encoder_output)
         x = self.norm2(x + cross_attn_out)
         ffn_out = self.ffn(x)
