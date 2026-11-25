@@ -241,7 +241,7 @@ class Decoder_Layer(nn.Module):
         self.norm3 = nn.LayerNorm(dim,eps=eps)
     def forward(self,x,encoder_output):
         self_attn_out,self_attn_weights = self.self_attention(x,x,x)
-        x = self.norm1(x + self_attn_out)# 先做逐格加法、再做归一化
+        x = self.norm1(x + self_attn_out)# 先做逐格加法、再做残差归一化
         cross_attn_out,cross_attn_weights = self.cross_attention(x,encoder_output,encoder_output)
         x = self.norm2(x + cross_attn_out)
         ffn_out = self.ffn(x)
